@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workday Copilot Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Sans+3:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">Personal Assistant</p>
+          <h1>Workday Copilot Hub</h1>
+          <p class="sidebar-copy">
+            One place for mail signals, Teams follow-ups, meetings, reminders,
+            and your daily execution list.
+          </p>
+        </div>
+
+        <div class="integration-card">
+          <p class="section-label">Integration Mode</p>
+          <div class="mode-row">
+            <span id="integration-badge" class="badge badge-live">Mock Data</span>
+            <button id="refresh-button" class="ghost-button">Refresh</button>
+          </div>
+          <p id="integration-copy" class="integration-copy"></p>
+        </div>
+
+        <div class="assistant-card">
+          <p class="section-label">Assistant Focus</p>
+          <ul id="assistant-focus" class="focus-list"></ul>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Employee Day View</p>
+            <h2 id="headline">Loading dashboard...</h2>
+            <p id="subheadline" class="hero-copy"></p>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-card">
+              <span class="stat-label">Pending Tasks</span>
+              <strong id="pending-count">0</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Meetings Today</span>
+              <strong id="meeting-count">0</strong>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Needs Attention</span>
+              <strong id="alert-count">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <article class="panel panel-wide">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Next Best Actions</p>
+                <h3>Priority Queue</h3>
+              </div>
+              <span class="panel-pill">Auto-curated</span>
+            </div>
+            <div id="priority-queue" class="list-stack"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Calendar</p>
+                <h3>Meetings to Attend</h3>
+              </div>
+            </div>
+            <div id="meeting-list" class="list-stack"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Reminders</p>
+                <h3>Upcoming Nudges</h3>
+              </div>
+            </div>
+            <div id="reminder-list" class="list-stack"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Outlook + Teams</p>
+                <h3>Inbox and Conversations</h3>
+              </div>
+            </div>
+            <div id="signal-list" class="list-stack"></div>
+          </article>
+
+          <article class="panel panel-wide">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Daily Execution</p>
+                <h3>Today's Work List</h3>
+              </div>
+            </div>
+            <div id="workday-list" class="workday-list"></div>
+          </article>
+
+          <article class="panel panel-wide">
+            <div class="panel-header">
+              <div>
+                <p class="section-label">Architecture</p>
+                <h3>M365 and Copilot Path</h3>
+              </div>
+            </div>
+            <div class="architecture">
+              <div>
+                <h4>Primary sources</h4>
+                <p>
+                  Microsoft Graph for Outlook mail, calendar, Teams messages,
+                  and Microsoft To Do / Planner tasks.
+                </p>
+              </div>
+              <div>
+                <h4>Assistant layer</h4>
+                <p>
+                  Copilot-style reasoning can summarize threads, extract action
+                  items, and convert mail or chat follow-ups into reminders.
+                </p>
+              </div>
+              <div>
+                <h4>Fallback option</h4>
+                <p>
+                  If Copilot is unavailable, the same workflow can be powered by
+                  an LLM service on top of Graph data or a custom rules engine.
+                </p>
+              </div>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
