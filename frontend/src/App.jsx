@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { useIsAuthenticated, useMsal } from "@azure/msal-react";
+import { isMsalConfigured, loginRequest } from "./authConfig";
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
 function ListItem({ kicker, title, meta, chips = [], emphasize = false }) {
   return (
@@ -42,49 +45,15 @@ function WorkdayItem({ task }) {
   );
 }
 
-export default function App() {
-  const [dashboard, setDashboard] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [mode, setMode] = useState("mock");
-
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError("");
-        const response = await fetch(`${API_BASE}/dashboard?mode=${mode}`);
-
-        if (!response.ok) {
-          throw new Error(`Dashboard request failed with ${response.status}`);
-        }
-
-        const data = await response.json();
-        setDashboard(data);
-      } catch (loadError) {
-        setError(loadError.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
-  }, [mode]);
-
-  if (loading) {
-    return <main className="loading-state">Loading Workday Copilot Hub...</main>;
-  }
-
-  if (error) {
-    return (
-      <main className="loading-state">
-        Unable to load the dashboard. Start the Python API and try again.
-        <br />
-        {error}
-      </main>
-    );
-  }
-
+function DashboardShell({
+  dashboard,
+  mode,
+  setMode,
+  authReady,
+  accountName,
+  onSignIn,
+  onSignOut,
+}) {
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -101,7 +70,7 @@ export default function App() {
           <p className="section-label">Integration Mode</p>
           <div className="mode-row">
             <span className="badge badge-live">
-              {dashboard.integrationMode === "mock" ? "Mock Data" : "Graph Ready"}
+              {dashboard.integrationMode === "mock" ? "Mock Data" : "Graph Live"}
             </span>
             <select
               className="mode-select"
@@ -113,6 +82,26 @@ export default function App() {
             </select>
           </div>
           <p className="integration-copy">{dashboard.integrationCopy}</p>
+          {authReady ? (
+            <div className="auth-card">
+              <span className="auth-label">
+                {accountName ? `Signed in as ${accountName}` : "Microsoft 365 not connected"}
+              </span>
+              {accountName ? (
+                <button className="auth-button" onClick={onSignOut} type="button">
+                  Sign out
+                </button>
+              ) : (
+                <button className="auth-button" onClick={onSignIn} type="button">
+                  Connect Microsoft 365
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="integration-copy">
+              Add `frontend/.env` values to enable real Microsoft 365 sign-in.
+            </p>
+          )}
         </div>
 
         <div className="assistant-card">
@@ -307,4 +296,147 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+function StandaloneApp() {
+  return <ConnectedApp authEnabled={false} />;
+}
+
+function MsalApp() {
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+
+  async function getGraphToken() {
+    const account = accounts[0];
+    if (!account) {
+      return null;
+    }
+
+    try {
+      const response = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account,
+      });
+      return response.accessToken;
+    } catch (error) {
+      if (error instanceof InteractionRequiredAuthError) {
+        const response = await instance.acquireTokenPopup(loginRequest);
+        return response.accessToken;
+      }
+      throw error;
+    }
+  }
+
+  async function signIn() {
+    await instance.loginPopup(loginRequest);
+  }
+
+  async function signOut() {
+    const account = accounts[0];
+    if (account) {
+      await instance.logoutPopup({ account });
+    }
+  }
+
+  return (
+    <ConnectedApp
+      authEnabled
+      accountName={isAuthenticated ? accounts[0]?.username : ""}
+      isAuthenticated={isAuthenticated}
+      onSignIn={signIn}
+      onSignOut={signOut}
+      getGraphToken={getGraphToken}
+    />
+  );
+}
+
+function ConnectedApp({
+  authEnabled,
+  accountName = "",
+  isAuthenticated = false,
+  onSignIn = async () => {},
+  onSignOut = async () => {},
+  getGraphToken = async () => null,
+}) {
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [mode, setMode] = useState("mock");
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const headers = {};
+        if (mode === "graph") {
+          if (!authEnabled) {
+            throw new Error("Microsoft sign-in is not configured in the frontend.");
+          }
+          if (!isAuthenticated) {
+            throw new Error("Sign in to Microsoft 365 to load live Outlook, Teams, and To Do data.");
+          }
+
+          const token = await getGraphToken();
+          if (!token) {
+            throw new Error("Unable to acquire a Microsoft Graph access token.");
+          }
+
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE}/dashboard?mode=${mode}`, {
+          headers,
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          throw new Error(errorBody.detail || `Dashboard request failed with ${response.status}`);
+        }
+
+        const data = await response.json();
+        setDashboard(data);
+      } catch (loadError) {
+        setError(loadError.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, [authEnabled, getGraphToken, isAuthenticated, mode]);
+
+  if (loading) {
+    return <main className="loading-state">Loading Workday Copilot Hub...</main>;
+  }
+
+  if (error && !dashboard) {
+    return (
+      <main className="loading-state">
+        Unable to load the dashboard.
+        <br />
+        {error}
+      </main>
+    );
+  }
+
+  return (
+    <>
+      {error ? <div className="top-error-banner">{error}</div> : null}
+      <DashboardShell
+        dashboard={dashboard}
+        mode={mode}
+        setMode={setMode}
+        authReady={authEnabled}
+        accountName={accountName}
+        onSignIn={onSignIn}
+        onSignOut={onSignOut}
+      />
+    </>
+  );
+}
+
+export default function App() {
+  return isMsalConfigured() ? <MsalApp /> : <StandaloneApp />;
 }

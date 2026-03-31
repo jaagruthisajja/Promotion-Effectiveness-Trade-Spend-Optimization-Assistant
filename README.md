@@ -40,11 +40,35 @@ The API will run at `http://127.0.0.1:8000`.
 
 ```powershell
 cd C:\Users\jaagruthi.sajja\Documents\Playground\frontend
+copy .env.example .env
 npm install
 npm run dev
 ```
 
 The React app will run at `http://127.0.0.1:5173`.
+
+## Microsoft 365 app registration
+
+To use live Outlook, Teams, calendar, and To Do data, register an application in Microsoft Entra ID and put its values in `frontend/.env`.
+
+Required frontend env vars:
+
+- `VITE_AZURE_CLIENT_ID`
+- `VITE_AZURE_TENANT_ID`
+- `VITE_AZURE_REDIRECT_URI`
+- `VITE_API_BASE_URL`
+
+Recommended redirect URI for local development:
+
+- `http://127.0.0.1:5173`
+
+Recommended delegated Graph scopes for this app:
+
+- `User.Read`
+- `Mail.Read`
+- `Calendars.Read`
+- `Tasks.Read`
+- `Chat.Read`
 
 ## API endpoints
 
@@ -52,14 +76,14 @@ The React app will run at `http://127.0.0.1:5173`.
 - `GET /api/dashboard?mode=mock`
 - `GET /api/dashboard?mode=graph`
 
-`graph` mode currently shows the Graph-ready state while still using placeholder data.
+`graph` mode now expects a Microsoft Graph bearer token from the React app and loads live Microsoft 365 data through the Python backend.
 
 ## Microsoft 365 integration path
 
 For production use, the recommended architecture is:
 
 1. Authenticate users with Microsoft Entra ID.
-2. Use Microsoft Graph to read Outlook mail, calendar events, Teams messages, and Microsoft To Do or Planner tasks.
+2. Use Microsoft Graph to read Outlook mail, calendar events, Teams messages, and Microsoft To Do tasks.
 3. Use Copilot or a custom assistant layer to summarize conversations, extract tasks, identify required meetings, and generate reminders.
 4. Persist user reminders, task status, and preferences in a backend store.
 
@@ -72,23 +96,20 @@ For production use, the recommended architecture is:
 
 ### Common delegated permissions
 
+- `User.Read`
 - `Mail.Read`
-- `Mail.ReadWrite`
 - `Calendars.Read`
 - `Tasks.Read`
-- `Tasks.ReadWrite`
 - `Chat.Read`
-- `ChannelMessage.Read.All`
-- `OnlineMeetings.Read`
 
-Some Teams permissions may require admin consent.
+Some Teams-related permissions may require admin consent depending on tenant policy and whether you expand beyond personal chats.
 
 ## Recommended next step
 
 The next implementation step is to add:
 
-- Entra ID sign-in
-- Graph token acquisition
-- backend Graph connectors
 - Copilot or LLM orchestration for task extraction
+- richer Teams support for channels and meeting chat
+- persistent reminder rules
+- task completion and snooze actions
 - persistent reminders and task updates
