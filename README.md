@@ -51,7 +51,13 @@ npm run dev
 
 The frontend runs at `http://127.0.0.1:5173`.
 
-Set `VITE_API_BASE_URL` in `frontend/.env` if you want to point the UI at a different API base URL.
+The frontend now defaults to the deployed backend at [https://promotion-effectiveness-trade-spend-udnh.onrender.com/api](https://promotion-effectiveness-trade-spend-udnh.onrender.com/api).
+
+Set `VITE_API_BASE_URL` if you want to point the UI at a different API base URL, for example a local backend:
+
+```powershell
+$env:VITE_API_BASE_URL="http://127.0.0.1:8000/api"
+```
 
 ## API endpoints
 
