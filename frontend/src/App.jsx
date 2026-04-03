@@ -1,442 +1,214 @@
 import { useEffect, useState } from "react";
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
-import { useIsAuthenticated, useMsal } from "@azure/msal-react";
-import { isMsalConfigured, loginRequest } from "./authConfig";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
-function ListItem({ kicker, title, meta, chips = [], emphasize = false }) {
+const SAMPLE_QUESTIONS = [
+  "Which promotion had the highest ROI in South India in Q1 2025?",
+  "Show low-performing discount campaigns in Modern Trade.",
+  "Which brand got the highest sales lift from promotions in South India?",
+  "Which promotions should be reduced based on low ROI?",
+];
+
+function StatCard({ label, value, tone = "default" }) {
   return (
-    <article className="list-item">
-      <div className="list-item-header">
-        <span className="item-kicker">{kicker}</span>
-        <span className="muted">{emphasize ? "Action now" : ""}</span>
+    <article className={`stat-card stat-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function KeyValueList({ title, data }) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <p className="eyebrow">Workflow Output</p>
+        <h3>{title}</h3>
       </div>
-      <h4>{title}</h4>
-      <p className="list-meta">{meta}</p>
-      <div className="chip-row">
-        {chips.map((chip) => (
-          <span key={`${title}-${chip.label}`} className={`chip ${chip.tone}`}>
-            {chip.label}
-          </span>
+      <div className="kv-list">
+        {Object.entries(data || {}).map(([key, value]) => (
+          <div className="kv-item" key={key}>
+            <span>{key.replaceAll("_", " ")}</span>
+            <strong>{typeof value === "object" ? JSON.stringify(value) : String(value)}</strong>
+          </div>
         ))}
       </div>
-    </article>
+    </section>
   );
 }
 
-function WorkdayItem({ task }) {
+function DataTable({ rows }) {
+  if (!rows?.length) {
+    return <p className="empty-state">No rows returned for this question.</p>;
+  }
+
+  const columns = Object.keys(rows[0]);
   return (
-    <article className="workday-item">
-      <div className="workday-header">
-        <div>
-          <p className="item-kicker">{task.source}</p>
-          <h4>{task.title}</h4>
-        </div>
-        <strong>{task.percentComplete}%</strong>
-      </div>
-      <p className="list-meta">
-        Due {task.displayDueAt} | Priority {task.priority}
-      </p>
-      <div className="progress">
-        <span style={{ width: `${task.percentComplete}%` }} />
-      </div>
-    </article>
-  );
-}
-
-function DashboardShell({
-  dashboard,
-  mode,
-  setMode,
-  authReady,
-  accountName,
-  onSignIn,
-  onSignOut,
-}) {
-  return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div>
-          <p className="eyebrow">Personal Assistant</p>
-          <h1>Workday Copilot Hub</h1>
-          <p className="sidebar-copy">
-            One place for Teams chats, Outlook mails, meetings, reminders, and
-            the employee work plan for the day.
-          </p>
-        </div>
-
-        <div className="integration-card">
-          <p className="section-label">Integration Mode</p>
-          <div className="mode-row">
-            <span className="badge badge-live">
-              {dashboard.integrationMode === "mock" ? "Mock Data" : "Graph Live"}
-            </span>
-            <select
-              className="mode-select"
-              value={mode}
-              onChange={(event) => setMode(event.target.value)}
-            >
-              <option value="mock">Mock</option>
-              <option value="graph">Graph</option>
-            </select>
-          </div>
-          <p className="integration-copy">{dashboard.integrationCopy}</p>
-          {authReady ? (
-            <div className="auth-card">
-              <span className="auth-label">
-                {accountName ? `Signed in as ${accountName}` : "Microsoft 365 not connected"}
-              </span>
-              {accountName ? (
-                <button className="auth-button" onClick={onSignOut} type="button">
-                  Sign out
-                </button>
-              ) : (
-                <button className="auth-button" onClick={onSignIn} type="button">
-                  Connect Microsoft 365
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className="integration-copy">
-              Add `frontend/.env` values to enable real Microsoft 365 sign-in.
-            </p>
-          )}
-        </div>
-
-        <div className="assistant-card">
-          <p className="section-label">Assistant Focus</p>
-          <ul className="focus-list">
-            {dashboard.focus.map((line) => (
-              <li key={line}>{line}</li>
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column.replaceAll("_", " ")}</th>
             ))}
-          </ul>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <section className="hero">
-          <div>
-            <p className="eyebrow">Employee Day View</p>
-            <h2>{dashboard.headline}</h2>
-            <p className="hero-copy">{dashboard.subheadline}</p>
-          </div>
-
-          <div className="hero-stats">
-            <div className="stat-card">
-              <span className="stat-label">Pending Tasks</span>
-              <strong>{dashboard.pendingCount}</strong>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Meetings Today</span>
-              <strong>{dashboard.meetingCount}</strong>
-            </div>
-            <div className="stat-card">
-              <span className="stat-label">Needs Attention</span>
-              <strong>{dashboard.alertCount}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid">
-          <article className="panel panel-wide">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Next Best Actions</p>
-                <h3>Priority Queue</h3>
-              </div>
-              <span className="panel-pill">Auto-curated</span>
-            </div>
-            <div className="list-stack">
-              {dashboard.priorityQueue.map((item) => (
-                <ListItem
-                  key={item.id}
-                  kicker={item.kind}
-                  title={item.title}
-                  meta={item.detail}
-                  emphasize={item.urgency === "high"}
-                  chips={[
-                    {
-                      label: item.urgency,
-                      tone: item.urgency === "high" ? "chip-warn" : "chip-accent",
-                    },
-                  ]}
-                />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${row.promotion_id || row.brand || "row"}-${index}`}>
+              {columns.map((column) => (
+                <td key={column}>{String(row[column])}</td>
               ))}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Calendar</p>
-                <h3>Meetings to Attend</h3>
-              </div>
-            </div>
-            <div className="list-stack">
-              {dashboard.meetingsToday.map((meeting) => (
-                <ListItem
-                  key={meeting.id}
-                  kicker={meeting.mustAttend ? "Required" : "Optional"}
-                  title={meeting.title}
-                  meta={meeting.displayTime}
-                  chips={[
-                    { label: meeting.organizer, tone: "chip-info" },
-                    { label: meeting.prepNote, tone: "chip-accent" },
-                  ]}
-                />
-              ))}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Reminders</p>
-                <h3>Upcoming Nudges</h3>
-              </div>
-            </div>
-            <div className="list-stack">
-              {dashboard.reminders.map((reminder) => (
-                <ListItem
-                  key={reminder.id}
-                  kicker={reminder.type}
-                  title={reminder.title}
-                  meta={reminder.displayAt}
-                  chips={[
-                    {
-                      label: "Reminder",
-                      tone: reminder.type === "meeting" ? "chip-info" : "chip-warn",
-                    },
-                  ]}
-                />
-              ))}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Outlook + Teams</p>
-                <h3>Inbox and Conversations</h3>
-              </div>
-            </div>
-            <div className="list-stack">
-              {dashboard.attentionSignals.map((signal) => (
-                <ListItem
-                  key={signal.id}
-                  kicker={signal.source}
-                  title={signal.subject}
-                  meta={`${signal.sender} | ${signal.displayReceivedAt}`}
-                  chips={[
-                    {
-                      label: signal.importance,
-                      tone: signal.importance === "high" ? "chip-warn" : "chip-accent",
-                    },
-                    {
-                      label: signal.needsReply ? "Reply needed" : "FYI",
-                      tone: "chip-info",
-                    },
-                    {
-                      label: signal.extractedTask,
-                      tone: "chip-accent",
-                    },
-                  ]}
-                />
-              ))}
-            </div>
-          </article>
-
-          <article className="panel panel-wide">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Daily Execution</p>
-                <h3>Today's Work List</h3>
-              </div>
-            </div>
-            <div className="workday-list">
-              {dashboard.workdayList.map((task) => (
-                <WorkdayItem key={task.id} task={task} />
-              ))}
-            </div>
-          </article>
-
-          <article className="panel panel-wide">
-            <div className="panel-header">
-              <div>
-                <p className="section-label">Architecture</p>
-                <h3>M365 and Copilot Path</h3>
-              </div>
-            </div>
-            <div className="architecture">
-              <div>
-                <h4>Primary sources</h4>
-                <p>
-                  Microsoft Graph for Outlook mail, calendar events, Teams
-                  conversations, and Microsoft To Do or Planner tasks.
-                </p>
-              </div>
-              <div>
-                <h4>Assistant layer</h4>
-                <p>
-                  Copilot or a custom assistant can summarize threads, extract
-                  action items, and convert conversations into reminders.
-                </p>
-              </div>
-              <div>
-                <h4>Backend role</h4>
-                <p>
-                  The Python service is the place to add Graph authentication,
-                  Copilot orchestration, prioritization rules, and persistence.
-                </p>
-              </div>
-            </div>
-          </article>
-        </section>
-      </main>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-function StandaloneApp() {
-  return <ConnectedApp authEnabled={false} />;
-}
-
-function MsalApp() {
-  const { instance, accounts } = useMsal();
-  const isAuthenticated = useIsAuthenticated();
-
-  async function getGraphToken() {
-    const account = accounts[0];
-    if (!account) {
-      return null;
-    }
-
-    try {
-      const response = await instance.acquireTokenSilent({
-        ...loginRequest,
-        account,
-      });
-      return response.accessToken;
-    } catch (error) {
-      if (error instanceof InteractionRequiredAuthError) {
-        const response = await instance.acquireTokenPopup(loginRequest);
-        return response.accessToken;
-      }
-      throw error;
-    }
-  }
-
-  async function signIn() {
-    await instance.loginPopup(loginRequest);
-  }
-
-  async function signOut() {
-    const account = accounts[0];
-    if (account) {
-      await instance.logoutPopup({ account });
-    }
-  }
-
-  return (
-    <ConnectedApp
-      authEnabled
-      accountName={isAuthenticated ? accounts[0]?.username : ""}
-      isAuthenticated={isAuthenticated}
-      onSignIn={signIn}
-      onSignOut={signOut}
-      getGraphToken={getGraphToken}
-    />
-  );
-}
-
-function ConnectedApp({
-  authEnabled,
-  accountName = "",
-  isAuthenticated = false,
-  onSignIn = async () => {},
-  onSignOut = async () => {},
-  getGraphToken = async () => null,
-}) {
-  const [dashboard, setDashboard] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function App() {
+  const [question, setQuestion] = useState(SAMPLE_QUESTIONS[0]);
+  const [response, setResponse] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState("mock");
+
+  async function askQuestion(selectedQuestion) {
+    try {
+      setLoading(true);
+      setError("");
+
+      const apiResponse = await fetch(`${API_BASE}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_query: selectedQuestion }),
+      });
+
+      const body = await apiResponse.json().catch(() => ({}));
+      if (!apiResponse.ok) {
+        throw new Error(body.detail || `Request failed with status ${apiResponse.status}`);
+      }
+
+      setResponse(body);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError("");
+    askQuestion(SAMPLE_QUESTIONS[0]);
+  }, []);
 
-        const headers = {};
-        if (mode === "graph") {
-          if (!authEnabled) {
-            throw new Error("Microsoft sign-in is not configured in the frontend.");
-          }
-          if (!isAuthenticated) {
-            throw new Error("Sign in to Microsoft 365 to load live Outlook, Teams, and To Do data.");
-          }
-
-          const token = await getGraphToken();
-          if (!token) {
-            throw new Error("Unable to acquire a Microsoft Graph access token.");
-          }
-
-          headers.Authorization = `Bearer ${token}`;
-        }
-
-        const response = await fetch(`${API_BASE}/dashboard?mode=${mode}`, {
-          headers,
-        });
-
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({}));
-          throw new Error(errorBody.detail || `Dashboard request failed with ${response.status}`);
-        }
-
-        const data = await response.json();
-        setDashboard(data);
-      } catch (loadError) {
-        setError(loadError.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
-  }, [authEnabled, getGraphToken, isAuthenticated, mode]);
-
-  if (loading) {
-    return <main className="loading-state">Loading Workday Copilot Hub...</main>;
-  }
-
-  if (error && !dashboard) {
-    return (
-      <main className="loading-state">
-        Unable to load the dashboard.
-        <br />
-        {error}
-      </main>
-    );
-  }
+  const topMetric = response?.computed_metrics?.[0];
 
   return (
-    <>
-      {error ? <div className="top-error-banner">{error}</div> : null}
-      <DashboardShell
-        dashboard={dashboard}
-        mode={mode}
-        setMode={setMode}
-        authReady={authEnabled}
-        accountName={accountName}
-        onSignIn={onSignIn}
-        onSignOut={onSignOut}
-      />
-    </>
-  );
-}
+    <main className="app-shell">
+      <section className="hero-panel">
+        <div className="hero-copy">
+          <p className="eyebrow">Promotion Analytics Assistant</p>
+          <h1>Promotion Effectiveness and Trade Spend Optimization</h1>
+          <p>
+            Ask business questions in plain English, inspect the extracted entities,
+            review the generated SQL, and get a grounded answer with ROI, sales lift,
+            incremental sales, and spend efficiency.
+          </p>
+        </div>
 
-export default function App() {
-  return isMsalConfigured() ? <MsalApp /> : <StandaloneApp />;
+        <div className="hero-actions">
+          <label className="prompt-card">
+            <span>Business question</span>
+            <textarea
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              rows={4}
+            />
+          </label>
+          <button
+            className="primary-button"
+            onClick={() => askQuestion(question)}
+            type="button"
+            disabled={loading}
+          >
+            {loading ? "Analyzing..." : "Ask assistant"}
+          </button>
+        </div>
+      </section>
+
+      <section className="sample-strip">
+        {SAMPLE_QUESTIONS.map((sample) => (
+          <button
+            key={sample}
+            className="sample-chip"
+            onClick={() => {
+              setQuestion(sample);
+              askQuestion(sample);
+            }}
+            type="button"
+          >
+            {sample}
+          </button>
+        ))}
+      </section>
+
+      {error ? <div className="error-banner">{error}</div> : null}
+
+      <section className="stats-grid">
+        <StatCard label="Validation" value={response?.validation?.is_valid ? "Approved" : "Pending"} tone="good" />
+        <StatCard label="Top ROI" value={topMetric?.roi ?? "n/a"} />
+        <StatCard label="Sales Lift %" value={topMetric?.sales_lift_percent ?? "n/a"} />
+        <StatCard label="Spend Efficiency" value={topMetric?.spend_efficiency ?? "n/a"} tone="accent" />
+      </section>
+
+      <section className="content-grid">
+        <section className="panel answer-panel">
+          <div className="panel-heading">
+            <p className="eyebrow">Final Answer</p>
+            <h2>Business insight</h2>
+          </div>
+          <p className="answer-text">{response?.answer || "Submit a question to analyze promotion data."}</p>
+          {response?.recommendation ? (
+            <div className="recommendation-card">{response.recommendation}</div>
+          ) : null}
+        </section>
+
+        <KeyValueList title="Extracted intent and entities" data={response?.extracted_query} />
+
+        <section className="panel">
+          <div className="panel-heading">
+            <p className="eyebrow">SQL Pipeline</p>
+            <h3>Generated SQL</h3>
+          </div>
+          <pre className="sql-block">{response?.generated_sql || "-- waiting for query --"}</pre>
+        </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <p className="eyebrow">Schema context</p>
+            <h3>Relevant tables</h3>
+          </div>
+          <div className="schema-list">
+            {(response?.schema_context || []).map((table) => (
+              <article className="schema-card" key={table.table}>
+                <strong>{table.table}</strong>
+                <p>{table.description}</p>
+                <span>{table.columns.join(", ")}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel panel-wide">
+          <div className="panel-heading">
+            <p className="eyebrow">Computed metrics</p>
+            <h3>Promotion results</h3>
+          </div>
+          <DataTable rows={response?.computed_metrics || []} />
+        </section>
+      </section>
+    </main>
+  );
 }

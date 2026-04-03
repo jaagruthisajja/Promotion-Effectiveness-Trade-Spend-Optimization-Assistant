@@ -1,28 +1,33 @@
-# Workday Copilot Hub
+# Promotion Effectiveness & Trade Spend Optimization Assistant
 
-This project is now structured as a Python + React application for an employee personal assistant dashboard.
+This project is a FastAPI + React application that turns plain-English promotion questions into safe SQL-backed business answers.
+
+## What the app does
+
+- accepts a promotion analytics question in plain English
+- extracts intent, metric, filters, and dimensions
+- retrieves relevant schema context
+- generates a safe SQL `SELECT` query
+- validates the SQL against a whitelist
+- executes the query on a seeded local SQLite database
+- returns a business-friendly answer plus raw results and computed metrics
 
 ## Stack
 
-- Python backend: FastAPI
-- JavaScript UI: React with Vite
-- Data model: mock Microsoft 365-style data, ready for Graph integration
-
-## Features
-
-- shows Outlook and Teams attention signals
-- highlights pending tasks and reminders
-- lists must-attend meetings
-- surfaces the employee's daily work plan
-- keeps a clear path to M365, Graph, and Copilot integration
+- Backend: FastAPI
+- Frontend: React with Vite
+- Local database: SQLite seeded from SQL scripts
+- Testing: pytest
 
 ## Project structure
 
-- `backend/`: Python API
-- `frontend/`: React UI
-- `requirements.txt`: Python dependencies
-
-The earlier root `index.html` prototype is still present, but the main app going forward is the Python + React stack.
+- `backend/main.py`: FastAPI entry point
+- `backend/api/routes.py`: `/api/health` and `/api/ask`
+- `backend/services/`: extractor, schema retrieval, SQL generation, validation, execution, metrics, insight pipeline
+- `backend/db/schema.sql`: local database schema
+- `backend/db/sample_data.sql`: seeded promotion records
+- `frontend/src/App.jsx`: promotion analytics UI
+- `tests/`: unit and end-to-end coverage
 
 ## Run the backend
 
@@ -34,82 +39,50 @@ pip install -r requirements.txt
 uvicorn backend.main:app --reload
 ```
 
-The API will run at `http://127.0.0.1:8000`.
+The API runs at `http://127.0.0.1:8000`.
 
 ## Run the frontend
 
 ```powershell
 cd C:\Users\jaagruthi.sajja\Documents\Playground\frontend
-copy .env.example .env
 npm install
 npm run dev
 ```
 
-The React app will run at `http://127.0.0.1:5173`.
+The frontend runs at `http://127.0.0.1:5173`.
 
-## Microsoft 365 app registration
-
-To use live Outlook, Teams, calendar, and To Do data, register an application in Microsoft Entra ID and put its values in `frontend/.env`.
-
-Required frontend env vars:
-
-- `VITE_AZURE_CLIENT_ID`
-- `VITE_AZURE_TENANT_ID`
-- `VITE_AZURE_REDIRECT_URI`
-- `VITE_API_BASE_URL`
-
-Recommended redirect URI for local development:
-
-- `http://127.0.0.1:5173`
-
-Recommended delegated Graph scopes for this app:
-
-- `User.Read`
-- `Mail.Read`
-- `Calendars.Read`
-- `Tasks.Read`
-- `Chat.Read`
+Set `VITE_API_BASE_URL` in `frontend/.env` if you want to point the UI at a different API base URL.
 
 ## API endpoints
 
 - `GET /api/health`
-- `GET /api/dashboard?mode=mock`
-- `GET /api/dashboard?mode=graph`
+- `POST /api/ask`
 
-`graph` mode now expects a Microsoft Graph bearer token from the React app and loads live Microsoft 365 data through the Python backend.
+Example request:
 
-## Microsoft 365 integration path
+```json
+{
+  "user_query": "Which promotion had the highest ROI in South India in Q1 2025?"
+}
+```
 
-For production use, the recommended architecture is:
+## Sample questions
 
-1. Authenticate users with Microsoft Entra ID.
-2. Use Microsoft Graph to read Outlook mail, calendar events, Teams messages, and Microsoft To Do tasks.
-3. Use Copilot or a custom assistant layer to summarize conversations, extract tasks, identify required meetings, and generate reminders.
-4. Persist user reminders, task status, and preferences in a backend store.
+- Which promotion had the highest ROI in South India in Q1 2025?
+- Which brand got the highest sales lift from promotions in South India?
+- Show low-performing discount campaigns in Modern Trade.
+- Which region had high trade spend but weak uplift?
+- Which promotions should be reduced based on low ROI?
 
-### Suggested Graph endpoints
+## Run tests
 
-- `GET /me/messages`
-- `GET /me/events`
-- `GET /me/todo/lists/{listId}/tasks`
-- Microsoft Graph Teams chat, channel message, and online meeting endpoints
+```powershell
+cd C:\Users\jaagruthi.sajja\Documents\Playground
+pytest
+```
 
-### Common delegated permissions
+## Notes
 
-- `User.Read`
-- `Mail.Read`
-- `Calendars.Read`
-- `Tasks.Read`
-- `Chat.Read`
-
-Some Teams-related permissions may require admin consent depending on tenant policy and whether you expand beyond personal chats.
-
-## Recommended next step
-
-The next implementation step is to add:
-
-- Copilot or LLM orchestration for task extraction
-- richer Teams support for channels and meeting chat
-- persistent reminder rules
-- task completion and snooze actions
-- persistent reminders and task updates
+- The framework asked for MySQL as a production-oriented executor; this MVP uses a seeded local SQLite database so the app runs immediately in this workspace.
+- Database path defaults to `backend/db/promotion_optimization.db`.
+- Override the database location with `PROMOTION_DB_PATH` if needed.
